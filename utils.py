@@ -2,6 +2,8 @@ import numpy as np
 import time
 import string
 import re
+import os
+import logging
 
 from collections import Counter
 from functools import wraps
@@ -74,3 +76,22 @@ def clear_prof_data():
     global PROF_DATA
     PROF_DATA = {}
  
+
+def init_logging(LOGGER, write_path=None):
+    import uuid
+    import time
+    log_id = time.strftime("%Y%m%d-") + str(uuid.uuid4())[:8]
+
+    LOGGER.setLevel(logging.INFO)
+    fmt = logging.Formatter('%(asctime)s: [ %(message)s ]',
+                            '%m/%d/%Y %I:%M:%S %p')
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    LOGGER.addHandler(console)
+
+    # For logfile writing
+    if write_path is not None:
+        logfile = logging.FileHandler(
+            os.path.join(LOG_DIR, log_id + '.txt'), 'w')
+        logfile.setFormatter(fmt)
+        LOGGER.addHandler(logfile)
