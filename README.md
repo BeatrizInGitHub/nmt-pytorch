@@ -1,10 +1,7 @@
-# DrugResponse2Vec
+# Neural Machine Translation
 A Pytorch Implementation of paper
 > DrugResponse2vec: Representation of Drug in Vector Space based on Drug-Cell line Response <br>
 > Jeon and Park et al., 2018
-
-## Abstract
-As more data available, it has become possible to data-driven new drug discovery pipeline. We, therefore, propose a model for predicting a similarity score between two drugs based on the differential gene expression patterns of the two drugs. Our model trains a Siamese neural network that takes fingerprints of a pair of two drugs and predicts its similarity score.
 
 ## Pipeline
 ![Full Pipeline](/images/pipeline.png)
@@ -72,4 +69,4 @@ KU | 0.661 | 0.720 | 0.689
 UU | 0.646 | 0.658 | 0.652
 
 ## Liscense
-Apache License 2.0
+MIT
