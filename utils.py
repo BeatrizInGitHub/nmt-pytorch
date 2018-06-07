@@ -92,6 +92,23 @@ def init_logging(LOGGER, write_path=None):
     # For logfile writing
     if write_path is not None:
         logfile = logging.FileHandler(
-            os.path.join(LOG_DIR, log_id + '.txt'), 'w')
+            os.path.join(write_path, log_id + '.txt'), 'w')
         logfile.setFormatter(fmt)
         LOGGER.addHandler(logfile)
+
+
+class AverageMeter(object):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count

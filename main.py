@@ -26,7 +26,7 @@ DATA_DIR = './data'
 DATA_PATH = os.path.join(DATA_DIR, 'wmt(small).pkl')
 RESULTS_DIR = './results'
 LOG_DIR = os.path.join(RESULTS_DIR, 'log')
-MODEL_NAME = 'test.mdl'
+MODEL_NAME = 'test_mdl'
 
 
 # Create dirs
@@ -42,7 +42,6 @@ def str2bool(v):
     return v.lower() in ('yes', 'true', 't', '1', 'y')
 
 
-
 # Run settings
 argparser = argparse.ArgumentParser()
 argparser.register('type', 'bool', str2bool)
@@ -50,7 +49,7 @@ argparser.register('type', 'bool', str2bool)
 argparser.add_argument('--data-path', type=str, default=DATA_PATH)
 argparser.add_argument('--results-dir', type=str, default=RESULTS_DIR)
 argparser.add_argument('--model-name', type=str, default=MODEL_NAME)
-argparser.add_argument('--print-step', type=float, default=100)
+argparser.add_argument('--print-step', type=float, default=30)
 argparser.add_argument('--validation-step', type=float, default=1)
 argparser.add_argument('--train', type='bool', default=True)
 argparser.add_argument('--valid', type='bool', default=True)
@@ -60,18 +59,19 @@ argparser.add_argument('--debug', type='bool', default=False)
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=32)
-argparser.add_argument('--epoch', type=int, default=40)
+argparser.add_argument('--epoch', type=int, default=5)
 argparser.add_argument('--learning-rate', type=float, default=1e-3)
-argparser.add_argument('--grad-max-norm', type=int, default=10)
-argparser.add_argument('--grad-clip', type=int, default=10)
+argparser.add_argument('--grad-max-norm', type=int, default=1)
 
 # Model config
 argparser.add_argument('--rnn-dim', type=int, default=1000)
 argparser.add_argument('--rnn-layer', type=int, default=1)
 argparser.add_argument('--rnn-dropout', type=float, default=0.0)
-argparser.add_argument('--bi-rnn', type='bool', default=False)
+argparser.add_argument('--bi-rnn', type='bool', default=True)
+argparser.add_argument('--word-embed-dim', type=int, default=620)
+argparser.add_argument('--align-dim', type=int, default=1000)
+argparser.add_argument('--maxout-dim', type=int, default=500)
 argparser.add_argument('--linear-dropout', type=float, default=0.0)
-argparser.add_argument('--word-embed-dim', type=int, default=300)
 argparser.add_argument('--seed', type=int, default=3)
 
 args = argparser.parse_args()
@@ -79,26 +79,19 @@ args = argparser.parse_args()
 
 def run_experiment(model, dataset, run_fn, args, cell_line=None):
 
-    # Get dataloaders
-    train_loader, valid_loader, test_loader = dataset.get_dataloader(
-        batch_size=args.batch_size, s_idx=args.s_idx) 
-
     # Save and load model during experiments
     if args.train:
         if args.resume:
             model.load_checkpoint(args.results_dir, args.model_name)
 
         best = 0.0
-        converge_cnt = 0
-        decay_cnt = 0
-
         for ep in range(args.epoch):
             LOGGER.info('Training Epoch %d' % (ep+1))
-            run_fn(model, train_loader, dataset, args, train=True)
+            run_fn(model, dataset.train_iter, dataset, args, train=True)
 
             if args.valid:
                 LOGGER.info('Validation')
-                curr = run_fn(model, valid_loader, dataset, args, train=False)
+                curr = run_fn(model, dataset.valid_iter, dataset, args, train=False)
 
                 # If best model, save
                 if not args.resume and curr > best:
@@ -107,32 +100,13 @@ def run_experiment(model, dataset, run_fn, args, cell_line=None):
                         'state_dict': model.state_dict(),
                         'optimizer': model.optimizer.state_dict()},
                         args.results_dir, args.model_name)
-                    converge_cnt = 0
-                else:
-                    converge_cnt += 1
 
-                # If converged, decay lr
-                if converge_cnt >= 3:
-                    for param_group in model.optimizer.param_groups:
-                        param_group['lr'] *= 0.5
-                    converge_cnt = 0
-                    decay_cnt += 1
-
-                    # If decayed more than 3 times, stop
-                    if decay_cnt > 3:
-                        LOGGER.info('Early stopping applied')
-                        break
-                    else:
-                        LOGGER.info('Decaying {}: learning rate {:.4f}'.format(
-                            deacy_cnt, model.optimizer.param_groups[0]['lr']))
-
-    
     if args.test:
         LOGGER.info('Performance Test on Valid & Test Set')
         if args.train or args.resume:
             model.load_checkpoint(args.results_dir, args.model_name)
-        run_fn(model, valid_loader, dataset, args, metric, train=False)
-        run_fn(model, test_loader, dataset, args, metric, train=False)
+        run_fn(model, dataset.valid_iter, dataset, args, train=False)
+        run_fn(model, dataset.test_iter, dataset, args, train=False)
 
 
 def get_dataset(path):
@@ -146,8 +120,20 @@ def get_run_fn(args):
 
 
 def get_model(args, dataset):
-    model = Seq2SeqAttModel(input_dim=dataset.input_dim,
-                            g_dropout=args.g_dropout).cuda()
+    model = Seq2SeqAttModel(
+        rnn_dim=args.rnn_dim,
+        rnn_layer=args.rnn_layer,
+        rnn_dropout=args.rnn_dropout,
+        bi_rnn=args.bi_rnn,
+        pad_idx=dataset.src.vocab.stoi['<pad>'],
+        word_embed_dim=args.word_embed_dim,
+        align_dim=args.align_dim,
+        maxout_dim=args.maxout_dim,
+        src_vocab_size=len(dataset.src.vocab),
+        trg_vocab_size=len(dataset.trg.vocab),
+        linear_dropout=args.linear_dropout,
+        learning_rate=args.learning_rate,
+    ).cuda()
                             
     return model
 
@@ -163,17 +149,12 @@ def init_seed(seed=None):
 
 
 def init_parameters(args, model_name, model_idx):
-    args.model_name = '{}-{}'.format(model_name, model_idx)
-    '''
-    args.learning_rate = np.random.uniform(1e-4, 2e-3)
-    args.batch_size = 2 ** np.random.randint(4, 7)
-    args.grad_max_norm = 5 * np.random.randint(1, 5)
-    args.hidden_dim = 64 * np.random.randint(1, 10)
-    '''
+    args.model_name = '{}_{}'.format(model_name, model_idx)
+
 
 def main():
     # Initialize logging
-    init_logging(LOGGER)
+    init_logging(LOGGER, LOG_DIR)
     LOGGER.info('COMMAND: {}'.format(' '.join(sys.argv)))
 
     # Get datset, run function, model name
@@ -195,7 +176,6 @@ def main():
 
         # Run experiment
         run_experiment(model, dataset, run_fn, args)
-
 
 
 if __name__ == '__main__':

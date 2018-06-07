@@ -68,12 +68,12 @@ class WMTDataset(object):
                 paths['test'].update([file_path])
 
         # Set filter
-        f = lambda ex: len(ex.src) <= 10 and len(ex.trg) <= 10
+        f = lambda ex: len(ex.src) <= 99999 and len(ex.trg) <= 99999
 
         # Preprocess datasets
         for train_path in sorted(paths['train']):
-            if 'nc9' not in train_path:
-                continue
+            # if 'nc9' not in train_path:
+            #     continue
             LOGGER.info('Train data: {}'.format(train_path))
             train = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
@@ -129,16 +129,22 @@ class WMTDataset(object):
         # Ready for iterators
         LOGGER.info('Setting iterators')
         self.train_iter = data.BucketIterator(
-            train, batch_size=32,
-            shuffle=True, repeat=True, device=-1,
+            train, batch_size=80,
+            shuffle=True, repeat=False, device=torch.device('cuda'),
+            sort_within_batch=True,
+            sort_key=lambda x: len(x.src)
         )
         self.valid_iter = data.BucketIterator(
             valid, batch_size=128,
-            shuffle=False, repeat=True, device=-1,
+            shuffle=False, repeat=False, device=torch.device('cuda'),
+            sort_within_batch=True,
+            sort_key=lambda x: len(x.src)
         )
         self.test_iter = data.BucketIterator(
             test, batch_size=128,
-            shuffle=False, repeat=True, device=-1,
+            shuffle=False, repeat=False, device=torch.device('cuda'),
+            sort_within_batch=True,
+            sort_key=lambda x: len(x.src)
         )
 
     def src_idx2word(self, idxs, split=False):
