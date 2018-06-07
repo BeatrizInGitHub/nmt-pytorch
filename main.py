@@ -23,7 +23,7 @@ from utils import *
 LOGGER = logging.getLogger()
 
 DATA_DIR = './data'
-DATA_PATH = os.path.join(DATA_DIR, 'wmt14.pkl')
+DATA_PATH = os.path.join(DATA_DIR, 'wmt(small).pkl')
 RESULTS_DIR = './results'
 LOG_DIR = os.path.join(RESULTS_DIR, 'log')
 MODEL_NAME = 'test.mdl'
@@ -47,44 +47,31 @@ def str2bool(v):
 argparser = argparse.ArgumentParser()
 argparser.register('type', 'bool', str2bool)
 
-argparser.add_argument('--data-path', type=str, default=DATA_PATH,
-                       help='Dataset path')
-argparser.add_argument('--results-dir', type=str, default=RESULTS_DIR,
-                       help='Directory for model results')
-argparser.add_argument('--model-name', type=str, default=MODEL_NAME,
-                       help='Model name for saving/loading')
-argparser.add_argument('--print-step', type=float, default=100,
-                       help='Display steps')
-argparser.add_argument('--validation-step', type=float, default=1,
-                       help='Number of random search validation')
-argparser.add_argument('--train', type='bool', default=True,
-                       help='Enable training')
-argparser.add_argument('--valid', type='bool', default=True,
-                       help='Enable validation')
-argparser.add_argument('--test', type='bool', default=True,
-                       help='Enable testing')
-argparser.add_argument('--resume', type='bool', default=False,
-                       help='Resume saved model')
-argparser.add_argument('--debug', type='bool', default=False,
-                       help='Run as debug mode')
+argparser.add_argument('--data-path', type=str, default=DATA_PATH)
+argparser.add_argument('--results-dir', type=str, default=RESULTS_DIR)
+argparser.add_argument('--model-name', type=str, default=MODEL_NAME)
+argparser.add_argument('--print-step', type=float, default=100)
+argparser.add_argument('--validation-step', type=float, default=1)
+argparser.add_argument('--train', type='bool', default=True)
+argparser.add_argument('--valid', type='bool', default=True)
+argparser.add_argument('--test', type='bool', default=True)
+argparser.add_argument('--resume', type='bool', default=False)
+argparser.add_argument('--debug', type='bool', default=False)
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=32)
 argparser.add_argument('--epoch', type=int, default=40)
-argparser.add_argument('--learning-rate', type=float, default=5e-4)
-argparser.add_argument('--weight-decay', type=float, default=0)
+argparser.add_argument('--learning-rate', type=float, default=1e-3)
 argparser.add_argument('--grad-max-norm', type=int, default=10)
 argparser.add_argument('--grad-clip', type=int, default=10)
 
 # Model config
-argparser.add_argument('--binary', type='bool', default=False)
-argparser.add_argument('--hidden-dim', type=int, default=576)
-argparser.add_argument('--lstm-layer', type=int, default=1)
-argparser.add_argument('--lstm-dr', type=float, default=0.0)
-argparser.add_argument('--char-dr', type=float, default=0.0)
-argparser.add_argument('--bi-lstm', type='bool', default=True)
-argparser.add_argument('--linear-dr', type=float, default=0.0)
-argparser.add_argument('--char-embed-dim', type=int, default=20)
+argparser.add_argument('--rnn-dim', type=int, default=1000)
+argparser.add_argument('--rnn-layer', type=int, default=1)
+argparser.add_argument('--rnn-dropout', type=float, default=0.0)
+argparser.add_argument('--bi-rnn', type='bool', default=False)
+argparser.add_argument('--linear-dropout', type=float, default=0.0)
+argparser.add_argument('--word-embed-dim', type=int, default=300)
 argparser.add_argument('--seed', type=int, default=3)
 
 args = argparser.parse_args()
@@ -149,7 +136,9 @@ def run_experiment(model, dataset, run_fn, args, cell_line=None):
 
 
 def get_dataset(path):
-    return pickle.load(open(path, 'rb'))
+    dataset = WMTDataset()
+    dataset.load(path)
+    return dataset
 
 
 def get_run_fn(args):
@@ -161,25 +150,6 @@ def get_model(args, dataset):
                             g_dropout=args.g_dropout).cuda()
                             
     return model
-
-
-def init_logging(args):
-    import uuid
-    import time
-    log_id = time.strftime("%Y%m%d-") + str(uuid.uuid4())[:8]
-
-    LOGGER.setLevel(logging.INFO)
-    fmt = logging.Formatter('%(asctime)s: [ %(message)s ]',
-                            '%m/%d/%Y %I:%M:%S %p')
-    console = logging.StreamHandler()
-    console.setFormatter(fmt)
-    LOGGER.addHandler(console)
-
-    # For logfile writing
-    logfile = logging.FileHandler(
-        os.path.join(LOG_DIR, log_id + '.txt'), 'w')
-    logfile.setFormatter(fmt)
-    LOGGER.addHandler(logfile)
 
 
 def init_seed(seed=None):
@@ -201,10 +171,9 @@ def init_parameters(args, model_name, model_idx):
     args.hidden_dim = 64 * np.random.randint(1, 10)
     '''
 
-
 def main():
     # Initialize logging
-    init_logging(args)
+    init_logging(LOGGER)
     LOGGER.info('COMMAND: {}'.format(' '.join(sys.argv)))
 
     # Get datset, run function, model name

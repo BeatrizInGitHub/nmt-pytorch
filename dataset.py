@@ -25,12 +25,15 @@ class WMTDataset(object):
         self.src = data.Field(tokenize=data.get_tokenizer('spacy'), 
                               init_token='<start>',
                               eos_token='<eos>',
+                              include_lengths=True,
+                              batch_first=True,
                               lower=True)
         self.trg = data.Field(tokenize=data.get_tokenizer('spacy'), 
                               init_token='<start>',
                               eos_token='<eos>',
+                              include_lengths=True,
+                              batch_first=True,
                               lower=True)
-        self.emb_dim = 50
 
     def preprocess(self, dirs, save_path=None):
         LOGGER.info('Preprocessing WMT data')
@@ -65,10 +68,12 @@ class WMTDataset(object):
                 paths['test'].update([file_path])
 
         # Set filter
-        f = lambda ex: len(ex.src) <= 9999 and len(ex.trg) <= 9999
+        f = lambda ex: len(ex.src) <= 10 and len(ex.trg) <= 10
 
         # Preprocess datasets
-        for train_path in paths['train']:
+        for train_path in sorted(paths['train']):
+            if 'nc9' not in train_path:
+                continue
             LOGGER.info('Train data: {}'.format(train_path))
             train = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
@@ -77,7 +82,7 @@ class WMTDataset(object):
             )
             results['train'] += vars(train)['examples']
 
-        for valid_path in paths['valid']:
+        for valid_path in sorted(paths['valid']):
             LOGGER.info('Valid data: {}'.format(valid_path))
             valid = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
@@ -86,7 +91,7 @@ class WMTDataset(object):
             )
             results['valid'] += vars(valid)['examples']
 
-        for test_path in paths['test']:
+        for test_path in sorted(paths['test']):
             LOGGER.info('Test data: {}'.format(test_path))
             test = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
@@ -118,49 +123,23 @@ class WMTDataset(object):
 
         # Build vocabulary
         LOGGER.info('Building vocabulary')
-        self.src.build_vocab(valid, max_size=30000)
-        self.trg.build_vocab(valid, max_size=30000)
+        self.src.build_vocab(train, max_size=30000)
+        self.trg.build_vocab(train, max_size=30000)
 
         # Ready for iterators
         LOGGER.info('Setting iterators')
-        train_iter = data.BucketIterator(
-            train, batch_size=16,
+        self.train_iter = data.BucketIterator(
+            train, batch_size=32,
             shuffle=True, repeat=True, device=-1,
         )
-        valid_iter = data.BucketIterator(
-            valid, batch_size=16,
+        self.valid_iter = data.BucketIterator(
+            valid, batch_size=128,
             shuffle=False, repeat=True, device=-1,
         )
-        test_iter = data.BucketIterator(
-            test, batch_size=16,
+        self.test_iter = data.BucketIterator(
+            test, batch_size=128,
             shuffle=False, repeat=True, device=-1,
         )
-        self.train_iter = iter(train_iter)
-        self.valid_iter = iter(valid_iter)
-        self.test_iter = iter(test_iter)
-
-        '''
-        LOGGER.info('Iterator test')
-        sample = next(self.test_iter)
-        print(self.src_idx2word(sample.src[:,0]))
-        print(self.trg_idx2word(sample.trg[:,0]))
-        exit()
-        '''
-
-    def next_batch(self, mode, gpu=False):
-        if mode == 'train':
-            batch = next(self.train_iter)
-        elif mode == 'valid':
-            batch = next(self.valid_iter)
-        elif mode == 'test':
-            batch = next(self.test_iter)
-        else:
-            raise NotImplementedError
-
-        if gpu:
-            return batch.src.cuda(), batch.trg.cuda()
-
-        return batch.src, batch.trg
 
     def src_idx2word(self, idxs, split=False):
         eos_idx = torch.argmax(idxs == self.src.vocab.stoi['<eos>'])
@@ -211,22 +190,22 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     save_preprocess = True
-    save_path = os.path.join(save_dir, 'wmt(tmp).pkl')
+    save_path = os.path.join(save_dir, 'wmt(big).pkl')
 
     # Save or load dataset
     dataset = WMTDataset()
     if save_preprocess:
-        dataset.preprocess(wmt_dirs, save_path) 
+        dataset.preprocess(wmt_dirs, save_path)
         LOGGER.info('## Saved datasets to %s' % save_path)
-    else:
-        LOGGER.info('## Loaded datasets from %s' % save_path)
-        dataset.load(save_path)
-    exit()
+        save_path = None
 
     # Loader testing
-    dataset.prepare_iterator()
-    for src, trg in dataset.next_batch('valid'):
-        print(dataset.src_idx2word(src[:,0]))
-        print(dataset.trg_idx2word(trg[:,0]))
+    dataset.load(save_path)
+    for batch in dataset.valid_iter:
+        src, trg = batch.src[0], batch.trg[0]
+        src_len, trg_len = batch.src[1], batch.trg[1]
+        LOGGER.info('sample source: {}'.format(dataset.src_idx2word(src[0,:])))
+        LOGGER.info('sample target: {}'.format(dataset.trg_idx2word(trg[0,:])))
+        LOGGER.info('length of src: {}, trg: {}'.format(src_len[0], trg_len[0]))
         break
 

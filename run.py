@@ -17,11 +17,7 @@ from utils import *
 LOGGER = logging.getLogger(__name__)
 
 
-def prob_to_class(prob):
-    return np.array([float(p >= 0.5) for p in prob])
-
-
-def run_bi(model, loader, dataset, args, metric, train=False):
+def run_nmt(model, loader, dataset, args, metric, train=False):
     total_step = 0.0
     stats = {'loss':[]}
     tar_set = []
@@ -73,12 +69,6 @@ def run_bi(model, loader, dataset, args, metric, train=False):
         uu_tar_set += list(tmp_tar[uu_idx])
         uu_pred_set += list(tmp_pred[uu_idx])
     
-        # Calculate current f1 scores
-        f1 = metric(list(tmp_tar[:]), list(prob_to_class(tmp_pred[:])))
-        f1_kk = metric(list(tmp_tar[kk_idx]), list(prob_to_class(tmp_pred[kk_idx])))
-        f1_ku = metric(list(tmp_tar[ku_idx]), list(prob_to_class(tmp_pred[ku_idx])))
-        f1_uu = metric(list(tmp_tar[uu_idx]), list(prob_to_class(tmp_pred[uu_idx])))
-
         # For binary classification, report f1
         _, _, f1, _ = f1
         _, _, f1_kk, _ = f1_kk
@@ -144,10 +134,6 @@ def run_bi(model, loader, dataset, args, metric, train=False):
         uu_tar_set, uu_pred_set = sort_and_slice(uu_tar_set, uu_pred_set)
 
     # Calculate acuumulated f1 scores
-    f1 = metric(tar_set, prob_to_class(pred_set))
-    f1_kk = metric(kk_tar_set, prob_to_class(kk_pred_set))
-    f1_ku = metric(ku_tar_set, prob_to_class(ku_pred_set))
-    f1_uu = metric(uu_tar_set, prob_to_class(uu_pred_set))
     pr, rc, f1, _ = f1
     pr_kk, rc_kk, f1_kk, _ = f1_kk
     pr_ku, rc_ku, f1_ku, _ = f1_ku

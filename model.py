@@ -16,13 +16,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Seq2SeqAttModel(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, drug_embed_dim,
-            lstm_layer, lstm_dropout, bi_lstm, linear_dropout, char_vocab_size,
-            char_embed_dim, char_dropout, dist_fn, learning_rate,
-            binary, is_mlp, weight_decay, is_graph, g_layer, 
-            g_hidden_dim, g_out_dim, g_dropout):
+    def __init__(self, rnn_dim, rnn_layer, rnn_dropout, bi_rnn,
+            word_embed_dim, src_vocab_size, trg_vocab_size, linear_dropout):
 
-        super(DrugModel, self).__init__()
+        super(Seq2SeqAttModel, self).__init__()
 
         # Save model configs
         self.drug_embed_dim = drug_embed_dim
