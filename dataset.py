@@ -11,6 +11,7 @@ import sys
 import logging
 import dill
 import torch
+import pandas
 
 from utils import init_logging
 from torchtext import data, datasets
@@ -19,40 +20,32 @@ LOGGER = logging.getLogger()
 
 
 class WMTDataset(object):
-    def __init__(self, wmt_dirs):
-        self.initial_setting()
-        self.process_wmt(wmt_dirs)
-        print(vars(self))
-
-    def initial_setting(self):
-        LOGGER.info('Loading spacy (en, fr)')
-        self.spacy_en = spacy.load('en')
-        self.spacy_fr = spacy.load('fr')
-        self.src = data.Field(tokenize=self.tokenize_en, init_token='<start>',
-                              eos_token='<eos>')
-        self.trg = data.Field(tokenize=self.tokenize_fr, init_token='<start>',
-                              eos_token='<eos>')
+    def __init__(self):
+        LOGGER.info('Loading field for source (en), target (fr)')
+        self.src = data.Field(tokenize=data.get_tokenizer('spacy'), 
+                              init_token='<start>',
+                              eos_token='<eos>',
+                              lower=True)
+        self.trg = data.Field(tokenize=data.get_tokenizer('spacy'), 
+                              init_token='<start>',
+                              eos_token='<eos>',
+                              lower=True)
         self.emb_dim = 50
 
-    def tokenize_en(self, text):
-        return [tok.text for tok in self.spacy_en.tokenizer(text)]
-
-    def tokenize_fr(self, text):
-        return [tok.text for tok in self.spacy_fr.tokenizer(text)]
-
-    def process_wmt(self, dirs):
+    def preprocess(self, dirs, save_path=None):
         LOGGER.info('Preprocessing WMT data')
         paths = {
             'train': set(),
             'valid': set(),
             'test': set()
         }
-        self.results = {
+        results = {
             'train': [],
             'valid': [],
-            'test': []
+            'test': [],
         }
 
+        # Find files within the directories
         for subdir, _, files, in os.walk(dirs['train']):
             for file_name in sorted(files):
                 file_path = os.path.join(subdir, file_name)
@@ -72,17 +65,17 @@ class WMTDataset(object):
                 paths['test'].update([file_path])
 
         # Set filter
-        f = lambda ex: len(ex.src) <= 10 and len(ex.trg) <= 10
+        f = lambda ex: len(ex.src) <= 9999 and len(ex.trg) <= 9999
+
+        # Preprocess datasets
         for train_path in paths['train']:
             LOGGER.info('Train data: {}'.format(train_path))
-            break
-            
             train = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
                 path=train_path,
                 filter_pred=f
             )
-            self.results['train'].append(train)
+            results['train'] += vars(train)['examples']
 
         for valid_path in paths['valid']:
             LOGGER.info('Valid data: {}'.format(valid_path))
@@ -91,7 +84,7 @@ class WMTDataset(object):
                 path=valid_path,
                 filter_pred=f
             )
-            self.results['valid'].append(valid)
+            results['valid'] += vars(valid)['examples']
 
         for test_path in paths['test']:
             LOGGER.info('Test data: {}'.format(test_path))
@@ -100,31 +93,52 @@ class WMTDataset(object):
                 path=test_path,
                 filter_pred=f
             )
-            self.results['test'].append(test)
+            results['test'] += vars(test)['examples']
+        
+        # Save
+        if save_path is not None:
+            torch.save(results, save_path)
 
-    def prepare_iterator(self): 
-        LOGGER.info('Building vocabulary using train data')
-        self.src.build_vocab(self.results['valid'][0].src)
-        self.trg.build_vocab(self.results['valid'][0].trg)
-        self.src_vocab_size = len(self.src.vocab.itos)
-        self.trc_vocab_size = len(self.trg.vocab.itos)
+        self.dataset = results
 
+    def load(self, load_path=None):
+        if load_path is not None:
+            self.dataset = torch.load(load_path)
+
+        LOGGER.info('Train: {}, Valid: {}, Test: {}'.format(
+            len(self.dataset['train']),
+            len(self.dataset['valid']),
+            len(self.dataset['test'])))
+
+        # Reload datasets
+        fields = [('src', self.src), ('trg', self.trg)]
+        train = data.Dataset(fields=fields, examples=self.dataset['train'])
+        valid = data.Dataset(fields=fields, examples=self.dataset['valid'])
+        test = data.Dataset(fields=fields, examples=self.dataset['test'])
+
+        # Build vocabulary
+        LOGGER.info('Building vocabulary')
+        self.src.build_vocab(valid, max_size=30000)
+        self.trg.build_vocab(valid, max_size=30000)
+
+        # Ready for iterators
+        LOGGER.info('Setting iterators')
         train_iter = data.BucketIterator(
-            self.results['valid'][0], batch_size=16,
+            train, batch_size=16,
             shuffle=True, repeat=True, device=-1,
         )
         valid_iter = data.BucketIterator(
-            self.results['valid'][0], batch_size=16,
+            valid, batch_size=16,
             shuffle=False, repeat=True, device=-1,
         )
         test_iter = data.BucketIterator(
-            self.results['test'][0], batch_size=16,
+            test, batch_size=16,
             shuffle=False, repeat=True, device=-1,
         )
         self.train_iter = iter(train_iter)
         self.valid_iter = iter(valid_iter)
         self.test_iter = iter(test_iter)
-        
+
         '''
         LOGGER.info('Iterator test')
         sample = next(self.test_iter)
@@ -132,12 +146,6 @@ class WMTDataset(object):
         print(self.trg_idx2word(sample.trg[:,0]))
         exit()
         '''
-
-    def get_src_vocab_vectors(self):
-        return self.src.vocab.vectors
-
-    def get_src_vocab_vectors(self):
-        return self.trg.vocab.vectors
 
     def next_batch(self, mode, gpu=False):
         if mode == 'train':
@@ -171,11 +179,9 @@ class WMTDataset(object):
             return ' '.join([self.trg.vocab.itos[i] for i in idxs[:eos_idx+1]])
 
 
-
 """
 [Version Note]
     v0.1: basic implementation
-    
 """
 
 def init_seed(seed=None):
@@ -204,20 +210,19 @@ if __name__ == '__main__':
     save_dir = './data'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-
     save_preprocess = True
     save_path = os.path.join(save_dir, 'wmt(tmp).pkl')
-    load_path = os.path.join(save_dir, 'wmt(tmp).pkl')
 
     # Save or load dataset
+    dataset = WMTDataset()
     if save_preprocess:
-        dataset = WMTDataset(wmt_dirs)
-        pickle.dump(dataset, open(save_path, 'wb'))
-        print('## Save preprocess %s' % save_path)
+        dataset.preprocess(wmt_dirs, save_path) 
+        LOGGER.info('## Saved datasets to %s' % save_path)
     else:
-        print('## Load preprocess %s' % load_path)
-        dataset = pickle.load(open(load_path, 'rb'))
-   
+        LOGGER.info('## Loaded datasets from %s' % save_path)
+        dataset.load(save_path)
+    exit()
+
     # Loader testing
     dataset.prepare_iterator()
     for src, trg in dataset.next_batch('valid'):
