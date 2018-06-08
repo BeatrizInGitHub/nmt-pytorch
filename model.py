@@ -129,6 +129,26 @@ class Seq2SeqAttModel(nn.Module):
         outputs, last_state = self.encoder(w_embed, init_h)
         
         return outputs, last_state
+
+    def decode_step(self, inp_embed, hidden, annotations):
+        # Compute alignments, context
+        a_list = []
+        for k in range(annotations.size(1)):
+            a_ik = self.v_a(F.tanh(self.w_a(hidden) + 
+                self.u_a(annotations[:,k,:])))
+            a_list.append(a_ik)
+        alignment = torch.cat(a_list, dim=1)
+        alignment = F.softmax(alignment, dim=1).unsqueeze(2)
+        context = torch.sum(alignment * annotations, dim=1)
+
+        # Maxout layer
+        t_i = self.u_o(hidden) + self.v_o(inp_embed) + self.c_o(context)
+        t_i = torch.max(t_i.view(-1, self.maxout_dim, 2), dim=-1)[0]
+        out = self.w_o(t_i)
+
+        # Update hidden
+        hidden = self.decoder(inp_embed, hidden)
+        return out, hidden
     
     def decode(self, inputs, length, annotations, encoder_state):
         w_embed = self.trg_word_embed(inputs)
@@ -138,33 +158,37 @@ class Seq2SeqAttModel(nn.Module):
         outputs = []
         hidden = encoder_state[1,:,:]
         for time_step in range(maxlen):
-
-            # Compute alignments, context
-            a_list = []
-            for k in range(annotations.size(1)):
-                a_ik = self.v_a(F.tanh(self.w_a(hidden) + 
-                    self.u_a(annotations[:,k,:])))
-                a_list.append(a_ik)
-            alignment = torch.cat(a_list, dim=1)
-            alignment = F.softmax(alignment, dim=1).unsqueeze(2)
-            context = torch.sum(alignment * annotations, dim=1)
-
-            # Maxout layer
-            t_i = self.u_o(hidden) + self.v_o(w_embed[:,time_step,:]) \
-                  + self.c_o(context)
-            t_i = torch.max(t_i.view(-1, self.maxout_dim, 2), dim=-1)[0]
-            out = self.w_o(t_i)
-
-            # Update hidden
-            hidden = self.decoder(w_embed[:,time_step,:], hidden)
+            out, hidden = self.decode_step(w_embed[:,time_step,:], 
+                hidden, annotations)
             outputs.append(out) 
 
         outputs = torch.stack(outputs).transpose(0, 1)
         return outputs
     
+    def beam_search(self, start, maxlen, annotations, encoder_state):
+        batch_size = start.size(0)
+
+        outputs = []
+        hidden = encoder_state[1,:,:]
+        inp = start
+        for time_step in range(maxlen):
+            w_embed = self.trg_word_embed(inp)
+            out, hidden = self.decode_step(w_embed, hidden, annotations)
+            inp = torch.argmax(out, dim=-1)
+            outputs.append(out) 
+
+        outputs = torch.stack(outputs).transpose(0, 1)
+        return outputs
+            
+    
     def forward(self, src, src_len, trg, trg_len):
         annotations, last_state = self.encode(src, src_len)
-        outputs = self.decode(trg[:,:-1], trg_len, annotations, last_state)
+        if self.training:
+            outputs = self.decode(trg[:,:-1], trg_len, annotations, last_state)
+        else:
+            outputs = self.beam_search(trg[:,0], trg.size(1)-1, annotations,
+                last_state)
+
         return outputs
     
     def get_loss(self, outputs, targets, length):

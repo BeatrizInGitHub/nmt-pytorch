@@ -23,7 +23,7 @@ from utils import *
 LOGGER = logging.getLogger()
 
 DATA_DIR = './data'
-DATA_PATH = os.path.join(DATA_DIR, 'wmt(big).pkl')
+DATA_PATH = os.path.join(DATA_DIR, 'wmt(small).pkl')
 RESULTS_DIR = './results'
 LOG_DIR = os.path.join(RESULTS_DIR, 'log')
 MODEL_NAME = 'test_mdl'
@@ -49,7 +49,7 @@ argparser.register('type', 'bool', str2bool)
 argparser.add_argument('--data-path', type=str, default=DATA_PATH)
 argparser.add_argument('--results-dir', type=str, default=RESULTS_DIR)
 argparser.add_argument('--model-name', type=str, default=MODEL_NAME)
-argparser.add_argument('--print-step', type=float, default=100)
+argparser.add_argument('--print-step', type=float, default=50)
 argparser.add_argument('--validation-step', type=float, default=1)
 argparser.add_argument('--train', type='bool', default=True)
 argparser.add_argument('--valid', type='bool', default=True)
@@ -58,7 +58,7 @@ argparser.add_argument('--resume', type='bool', default=False)
 argparser.add_argument('--debug', type='bool', default=False)
 
 # Train config
-argparser.add_argument('--batch-size', type=int, default=16)
+argparser.add_argument('--batch-size', type=int, default=80)
 argparser.add_argument('--epoch', type=int, default=5)
 argparser.add_argument('--learning-rate', type=float, default=1e-3)
 argparser.add_argument('--grad-max-norm', type=int, default=1)
