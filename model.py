@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-import collections
 import math
 import sys
 import os
@@ -57,7 +56,7 @@ class Seq2SeqAttModel(nn.Module):
             batch_first=True
         )
         self.decoder = nn.GRUCell(
-            input_size=self.word_embed_dim, 
+            input_size=self.word_embed_dim + self.rnn_dim * 2, 
             hidden_size=self.rnn_dim, 
         )
         
@@ -147,7 +146,7 @@ class Seq2SeqAttModel(nn.Module):
         out = self.w_o(t_i)
 
         # Update hidden
-        hidden = self.decoder(inp_embed, hidden)
+        hidden = self.decoder(torch.cat((inp_embed, context), dim=-1), hidden)
         return out, hidden
     
     def decode(self, inputs, length, annotations, encoder_state):
@@ -167,19 +166,27 @@ class Seq2SeqAttModel(nn.Module):
     
     def beam_search(self, start, maxlen, annotations, encoder_state):
         batch_size = start.size(0)
+        beam_size = 1
+        # best_seq = [[[start[0].tolist()]]]*batch_size
 
         outputs = []
         hidden = encoder_state[1,:,:]
+
+        # Beam search TODO: beam size > 1
         inp = start
         for time_step in range(maxlen):
+            # inp = torch.cuda.LongTensor([s[-1] for q in best_seq for s in q]).view(-1)
             w_embed = self.trg_word_embed(inp)
             out, hidden = self.decode_step(w_embed, hidden, annotations)
-            inp = torch.argmax(out, dim=-1)
+            cand_score, inp = torch.topk(out, beam_size, dim=-1)
+            inp.squeeze_(1)
+
+            # for b_idx, b_seqs in enumerate(best_seq):
+            #     for c_idx, cand in enumerate(cand_inp[b_idx]):
             outputs.append(out) 
 
         outputs = torch.stack(outputs).transpose(0, 1)
         return outputs
-            
     
     def forward(self, src, src_len, trg, trg_len):
         annotations, last_state = self.encode(src, src_len)

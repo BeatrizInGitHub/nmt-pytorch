@@ -84,7 +84,7 @@ def run_experiment(model, dataset, run_fn, args, cell_line=None):
         if args.resume:
             model.load_checkpoint(args.results_dir, args.model_name)
 
-        best = 999999
+        best = 0.0
         for ep in range(args.epoch):
             LOGGER.info('Training Epoch %d' % (ep+1))
             run_fn(model, dataset.train_iter, dataset, args, train=True)
@@ -94,7 +94,7 @@ def run_experiment(model, dataset, run_fn, args, cell_line=None):
                 curr = run_fn(model, dataset.valid_iter, dataset, args, train=False)
 
                 # If best model, save
-                if curr < best:
+                if curr > best:
                     best = curr
                     model.save_checkpoint({
                         'state_dict': model.state_dict(),

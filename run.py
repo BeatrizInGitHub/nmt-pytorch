@@ -53,7 +53,7 @@ def run_nmt(model, loader, dataset, args, train=False):
         # Print for print step or at last
         if b_idx % args.print_step == 0 or b_idx == (len(loader) - 1):
             _progress = (
-                '{}/{} | Loss: {:.3f} | BLEU: {:.3f} | '.format(
+                '{}/{} | Loss: {:.3f} | BLEU: {:.3f}'.format(
                 b_idx + 1, len(loader), stats['loss'].avg, stats['bleu'].avg)
             )
             LOGGER.info(_progress)
@@ -65,5 +65,5 @@ def run_nmt(model, loader, dataset, args, train=False):
                 LOGGER.info('Sample target: {}'.format(targ[0]))
                 LOGGER.info('Sample result: {}'.format(sent[0]))
 
-    return loss
+    return stats['bleu'].avg 
 
