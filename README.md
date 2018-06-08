@@ -32,5 +32,5 @@ $ python main.py --rnn-dim 500 --epoch 10
 ## Results (vs RNNsearch-30)
 | Reported BLEU | Our Implementation (valid) | Our Implementation (test) |
 |:-------------:|:--------------------------:|:-------------------------:|
-|     21.50     |             -              |             -             |
+|     21.50     |            16.21           |           17.16           |
 
