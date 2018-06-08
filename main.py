@@ -58,7 +58,7 @@ argparser.add_argument('--resume', type='bool', default=False)
 argparser.add_argument('--debug', type='bool', default=False)
 
 # Train config
-argparser.add_argument('--batch-size', type=int, default=80)
+argparser.add_argument('--batch-size', type=int, default=16)
 argparser.add_argument('--epoch', type=int, default=5)
 argparser.add_argument('--learning-rate', type=float, default=1e-3)
 argparser.add_argument('--grad-max-norm', type=int, default=1)

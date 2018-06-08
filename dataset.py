@@ -68,7 +68,7 @@ class WMTDataset(object):
                 paths['test'].update([file_path])
 
         # Set filter
-        f = lambda ex: len(ex.src) <= 99999 and len(ex.trg) <= 99999
+        f = lambda ex: len(ex.src) <= 30 and len(ex.trg) <= 30
 
         # Preprocess datasets
         for train_path in sorted(paths['train']):
@@ -195,8 +195,8 @@ if __name__ == '__main__':
     save_dir = './data'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    save_preprocess = False
-    save_path = os.path.join(save_dir, 'wmt(small).pkl')
+    save_preprocess = True
+    save_path = os.path.join(save_dir, 'wmt(30).pkl')
 
     # Save or load dataset
     dataset = WMTDataset()
