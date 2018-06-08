@@ -12,6 +12,7 @@ import os
 from datetime import datetime
 from torch.autograd import Variable
 from utils import *
+from bleu import *
 
 
 LOGGER = logging.getLogger(__name__)
@@ -35,6 +36,14 @@ def run_nmt(model, loader, dataset, args, train=False):
         loss = model.get_loss(outputs, batch.trg[0][:,1:])
         stats['loss'].update(loss.item(), batch_size)
 
+        # Get sentences, eval bleu
+        sent = []
+        targ = []
+        for k in range(batch_size):
+            sent.append(dataset.trg_idx2word(torch.argmax(outputs, dim=2)[k,:]))
+            targ.append(dataset.trg_idx2word(batch.trg[0][k,:]))
+        stats['bleu'].update(get_bleu(sent, targ), 1)
+
         # Optimize model
         if train:
             loss.backward()
@@ -44,10 +53,17 @@ def run_nmt(model, loader, dataset, args, train=False):
         # Print for print step or at last
         if b_idx % args.print_step == 0 or b_idx == (len(loader) - 1):
             _progress = (
-                '{}/{} | Loss: {:.3f} | Total F1: {:.3f} | '.format(
-                b_idx + 1, len(loader), stats['loss'].avg, 0)
+                '{}/{} | Loss: {:.3f} | BLEU: {:.3f} | '.format(
+                b_idx + 1, len(loader), stats['loss'].avg, stats['bleu'].avg)
             )
             LOGGER.info(_progress)
+
+            # Sample outputs
+            if not train and b_idx == (len(loader) - 1):
+                source = dataset.src_idx2word(batch.src[0][0,:])
+                LOGGER.info('Sample source: {}'.format(source))
+                LOGGER.info('Sample target: {}'.format(targ[0]))
+                LOGGER.info('Sample result: {}'.format(sent[0]))
 
     return loss
 

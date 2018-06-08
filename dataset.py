@@ -150,18 +150,18 @@ class WMTDataset(object):
     def src_idx2word(self, idxs, split=False):
         eos_idx = torch.argmax(idxs == self.src.vocab.stoi['<eos>'])
         if split:
-            return [self.src.vocab.itos[i] for i in idxs[:eos_idx+1]]
+            return [self.src.vocab.itos[i] for i in idxs[1:eos_idx]]
         else:
-            return ' '.join([self.src.vocab.itos[i] for i in idxs[:eos_idx+1]])
+            return ' '.join([self.src.vocab.itos[i] for i in idxs[1:eos_idx]])
 
     def trg_idx2word(self, idxs, split=False):
         eos_idx = torch.argmax(idxs == self.trg.vocab.stoi['<eos>'])
         if eos_idx == 0:
-            eos_idx = torch.LongTensor([-1])
+            eos_idx = torch.LongTensor([idxs.size(0)])
         if split:
-            return [self.trg.vocab.itos[i] for i in idxs[:eos_idx+1]]
+            return [self.trg.vocab.itos[i] for i in idxs[1:eos_idx]]
         else:
-            return ' '.join([self.trg.vocab.itos[i] for i in idxs[:eos_idx+1]])
+            return ' '.join([self.trg.vocab.itos[i] for i in idxs[1:eos_idx]])
 
 
 """
@@ -195,8 +195,8 @@ if __name__ == '__main__':
     save_dir = './data'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    save_preprocess = True
-    save_path = os.path.join(save_dir, 'wmt(big).pkl')
+    save_preprocess = False
+    save_path = os.path.join(save_dir, 'wmt(small).pkl')
 
     # Save or load dataset
     dataset = WMTDataset()
