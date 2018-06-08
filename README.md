@@ -32,7 +32,7 @@ $ python main.py --rnn-dim 500 --epoch 10
 ## Results (vs RNNsearch-30)
 | Reported BLEU | Our Implementation (valid) | Our Implementation (test) |
 |:-------------:|:--------------------------:|:-------------------------:|
-|     92.3      |           71.1             |           108.9           |
+|     21.50     |             -              |             -             |
 
 ## Licence
 MIT
