@@ -106,7 +106,7 @@ class WMTDataset(object):
 
         self.dataset = results
 
-    def load(self, load_path=None):
+    def load(self, load_path=None, train_bs=80, valid_bs=128, test_bs=128):
         if load_path is not None:
             self.dataset = torch.load(load_path)
 
@@ -129,19 +129,19 @@ class WMTDataset(object):
         # Ready for iterators
         LOGGER.info('Setting iterators')
         self.train_iter = data.BucketIterator(
-            train, batch_size=80,
+            train, batch_size=train_bs,
             shuffle=True, repeat=False, device=torch.device('cuda'),
             sort_within_batch=True,
             sort_key=lambda x: len(x.src)
         )
         self.valid_iter = data.BucketIterator(
-            valid, batch_size=128,
+            valid, batch_size=valid_bs,
             shuffle=False, repeat=False, device=torch.device('cuda'),
             sort_within_batch=True,
             sort_key=lambda x: len(x.src)
         )
         self.test_iter = data.BucketIterator(
-            test, batch_size=128,
+            test, batch_size=test_bs,
             shuffle=False, repeat=False, device=torch.device('cuda'),
             sort_within_batch=True,
             sort_key=lambda x: len(x.src)
