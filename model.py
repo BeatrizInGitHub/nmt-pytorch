@@ -8,7 +8,6 @@ import sys
 import os
 import logging
 
-from torch.autograd import Variable
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 from torch.nn.parameter import Parameter
 
@@ -115,8 +114,8 @@ class Seq2SeqAttModel(nn.Module):
         self.c_o.bias.data.zero_()
 
     def init_h(self, batch_size):
-        return Variable(torch.zeros(self.rnn_layer * (2 if self.bi_rnn else 1),
-                        batch_size, self.rnn_dim)).cuda()
+        return torch.zeros(self.rnn_layer * (2 if self.bi_rnn else 1),
+                           batch_size, self.rnn_dim).cuda()
 
     def encode(self, inputs, length):
         w_embed = self.src_word_embed(inputs)

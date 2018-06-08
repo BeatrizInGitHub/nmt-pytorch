@@ -87,7 +87,7 @@ class WMTDataset(object):
             valid = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
                 path=valid_path,
-                filter_pred=f
+                # filter_pred=f
             )
             results['valid'] += vars(valid)['examples']
 
@@ -96,7 +96,7 @@ class WMTDataset(object):
             test = datasets.TranslationDataset(
                 exts=('.en', '.fr'), fields=(self.src, self.trg),
                 path=test_path,
-                filter_pred=f
+                # filter_pred=f
             )
             results['test'] += vars(test)['examples']
         

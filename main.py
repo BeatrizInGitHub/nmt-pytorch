@@ -23,7 +23,7 @@ from utils import *
 LOGGER = logging.getLogger()
 
 DATA_DIR = './data'
-DATA_PATH = os.path.join(DATA_DIR, 'wmt(small).pkl')
+DATA_PATH = os.path.join(DATA_DIR, 'wmt(30_1).pkl')
 RESULTS_DIR = './results'
 LOG_DIR = os.path.join(RESULTS_DIR, 'log')
 MODEL_NAME = 'test_mdl'
