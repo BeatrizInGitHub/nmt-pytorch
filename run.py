@@ -59,10 +59,11 @@ def run_nmt(model, loader, dataset, args, train=False):
             LOGGER.info(_progress)
 
             # Sample outputs
-            source = dataset.src_idx2word(batch.src[0][0,:])
-            LOGGER.info('Sample source: {}'.format(source))
-            LOGGER.info('Sample target: {}'.format(targ[0]))
-            LOGGER.info('Sample result: {}'.format(sent[0]))
+            if not train:
+                source = dataset.src_idx2word(batch.src[0][0,:])
+                LOGGER.info('Sample source: {}'.format(source))
+                LOGGER.info('Sample target: {}'.format(targ[0]))
+                LOGGER.info('Sample result: {}'.format(sent[0]))
 
     return loss
 

@@ -136,13 +136,13 @@ class WMTDataset(object):
         )
         self.valid_iter = data.BucketIterator(
             valid, batch_size=valid_bs,
-            shuffle=False, repeat=False, device=torch.device('cuda'),
+            shuffle=True, repeat=False, device=torch.device('cuda'),
             sort_within_batch=True,
             sort_key=lambda x: len(x.src)
         )
         self.test_iter = data.BucketIterator(
             test, batch_size=test_bs,
-            shuffle=False, repeat=False, device=torch.device('cuda'),
+            shuffle=True, repeat=False, device=torch.device('cuda'),
             sort_within_batch=True,
             sort_key=lambda x: len(x.src)
         )

@@ -60,7 +60,7 @@ argparser.add_argument('--debug', type='bool', default=False)
 # Train config
 argparser.add_argument('--batch-size', type=int, default=80)
 argparser.add_argument('--epoch', type=int, default=5)
-argparser.add_argument('--learning-rate', type=float, default=1e-3)
+argparser.add_argument('--learning-rate', type=float, default=1.0)
 argparser.add_argument('--grad-max-norm', type=int, default=1)
 
 # Model config
@@ -84,7 +84,7 @@ def run_experiment(model, dataset, run_fn, args, cell_line=None):
         if args.resume:
             model.load_checkpoint(args.results_dir, args.model_name)
 
-        best = 0.0
+        best = 999999
         for ep in range(args.epoch):
             LOGGER.info('Training Epoch %d' % (ep+1))
             run_fn(model, dataset.train_iter, dataset, args, train=True)
@@ -94,7 +94,7 @@ def run_experiment(model, dataset, run_fn, args, cell_line=None):
                 curr = run_fn(model, dataset.valid_iter, dataset, args, train=False)
 
                 # If best model, save
-                if not args.resume and curr > best:
+                if curr < best:
                     best = curr
                     model.save_checkpoint({
                         'state_dict': model.state_dict(),
