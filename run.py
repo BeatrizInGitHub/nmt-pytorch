@@ -33,7 +33,7 @@ def run_nmt(model, loader, dataset, args, train=False):
 
         # Get outputs
         outputs = model(*batch.src, *batch.trg)
-        loss = model.get_loss(outputs, batch.trg[0][:,1:])
+        loss = model.get_loss(outputs, batch.trg[0][:,1:], batch.trg[1]-1)
         stats['loss'].update(loss.item(), batch_size)
 
         # Get sentences, eval bleu

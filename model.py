@@ -63,7 +63,7 @@ class Seq2SeqAttModel(nn.Module):
         
         # Parameters for alignment
         self.w_s = nn.Linear(self.rnn_dim, self.rnn_dim)
-        self.v_a = nn.Linear(self.align_dim, 1)
+        self.v_a = nn.Linear(self.align_dim, 1, bias=False)
         self.w_a = nn.Linear(self.rnn_dim, self.align_dim)
         self.u_a = nn.Linear(self.rnn_dim * 2, self.align_dim)
 
@@ -73,11 +73,47 @@ class Seq2SeqAttModel(nn.Module):
         self.v_o = nn.Linear(self.word_embed_dim, self.maxout_dim * 2)
         self.c_o = nn.Linear(self.rnn_dim * 2, self.maxout_dim * 2)
 
-        # Print model info and set optimizer, loss
+        # Print model info and set optimizer, loss, initialization
         info, self.params = self.get_model_params()
         LOGGER.info(info)
         self.optimizer = optim.Adadelta(self.params, learning_rate)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(reduce=False)
+        self.init_weights()
+
+    def init_weights(self):
+        # Orthogonal/zero initialization for RNNs
+        for name, param in self.encoder.named_parameters():
+            if 'weight' in name:
+                nn.init.orthogonal_(param)
+            if 'bias' in name:
+                param.data.zero_()
+        for name, param in self.decoder.named_parameters():
+            if 'weight' in name:
+                nn.init.orthogonal_(param)
+            if 'bias' in name:
+                param.data.zero_()
+
+        # N(0, 0.001^2) for W_a, U_a
+        nn.init.normal_(self.w_a.weight, mean=0, std=0.001)
+        nn.init.normal_(self.u_a.weight, mean=0, std=0.001)
+        self.w_a.bias.data.zero_()
+        self.u_a.bias.data.zero_()
+
+        # V_a to zero
+        for param in self.v_a.parameters():
+            param.data.zero_()
+
+        # Others to N(0, 0.01^2)
+        nn.init.normal_(self.w_s.weight, mean=0, std=0.01)
+        nn.init.normal_(self.w_o.weight, mean=0, std=0.01)
+        nn.init.normal_(self.u_o.weight, mean=0, std=0.01)
+        nn.init.normal_(self.v_o.weight, mean=0, std=0.01)
+        nn.init.normal_(self.c_o.weight, mean=0, std=0.01)
+        self.w_s.bias.data.zero_()
+        self.w_o.bias.data.zero_()
+        self.u_o.bias.data.zero_()
+        self.v_o.bias.data.zero_()
+        self.c_o.bias.data.zero_()
 
     def init_h(self, batch_size):
         return Variable(torch.zeros(self.rnn_layer * (2 if self.bi_rnn else 1),
@@ -88,28 +124,9 @@ class Seq2SeqAttModel(nn.Module):
         batch_size = inputs.size(0)
         maxlen = inputs.size(1)
 
-        if False:
-            # Sort inputs
-            _, sort_idx = torch.sort(length, dim=0, descending=True)
-            _, unsort_idx = torch.sort(sort_idx, dim=0)
-
-            # Pack padded sequence
-            w_embed = w_embed.index_select(0, Variable(sort_idx).cuda())
-            sorted_len = length.index_select(0, sort_idx).tolist()
-            w_packed = pack_padded_sequence(w_embed, sorted_len, batch_first=True) 
-        else:
-            w_packed = w_embed
-
-        # Run LSTM
+        # Run GRU
         init_h = self.init_h(batch_size)
-        outputs, last_state = self.encoder(w_packed, init_h)
-
-        if False:
-            # TODO: pad packed sequence
-            # Unsort hidden states
-            outputs = outputs.index_select(0, Variable(unsort_idx).cuda())
-        else:
-            outputs = outputs
+        outputs, last_state = self.encoder(w_embed, init_h)
         
         return outputs, last_state
     
@@ -150,10 +167,21 @@ class Seq2SeqAttModel(nn.Module):
         outputs = self.decode(trg[:,:-1], trg_len, annotations, last_state)
         return outputs
     
-    def get_loss(self, outputs, targets):
+    def get_loss(self, outputs, targets, length):
+        batch_size = outputs.size(0)
+        maxlen = outputs.size(1)
+
+        # Create mask
+        mask = torch.arange(maxlen).unsqueeze(0).repeat(batch_size, 1).long().cuda()
+        mask = mask < length.unsqueeze(1).repeat(1, maxlen)
+
+        # Gather by mask
         outputs = outputs.contiguous().view(-1, self.trg_vocab_size)
         targets = targets.contiguous().view(-1)
-        return self.criterion(outputs, targets)
+        losses = self.criterion(outputs, targets)
+        losses = losses.view(batch_size, -1) * mask.float() 
+
+        return torch.sum(losses) / torch.sum(mask.float())
 
     def get_model_params(self):
         params = []
