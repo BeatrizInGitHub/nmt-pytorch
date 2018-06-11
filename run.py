@@ -58,6 +58,10 @@ def run_nmt(model, loader, dataset, args, train=False):
             )
             LOGGER.info(_progress)
 
+            # Fast break
+            if b_idx > len(loader) / 20:
+                break
+
             # Sample outputs
             if not train:
                 source = dataset.src_idx2word(batch.src[0][0,:])
